@@ -51,6 +51,43 @@
     object-fit: cover;
   }
 
+  .break-track {
+    height: 400vh;
+  }
+
+  .resolution-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+    padding: 0 24px;
+    opacity: 0;
+    transition: opacity 1.4s ease;
+    pointer-events: none;
+  }
+
+  .resolution-overlay.visible {
+    opacity: 1;
+  }
+
+  .resolution-overlay .line1 {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: clamp(20px, 4vw, 36px);
+    color: var(--cream);
+  }
+
+  .resolution-overlay .line2,
+  .resolution-overlay .line3 {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--gray);
+  }
+
   .generation-counter {
     position: fixed;
     top: 24px;
@@ -76,6 +113,17 @@
 <div class="scrub-track" id="lifeTrack">
   <div class="scrub-pin">
     <video id="lifeVideo" src="epoch-life.mp4" muted playsinline preload="auto"></video>
+  </div>
+</div>
+
+<div class="scrub-track break-track" id="breakTrack" style="display: none;">
+  <div class="scrub-pin">
+    <video id="breakVideo" src="epoch-break.mp4" muted playsinline preload="auto"></video>
+    <div class="resolution-overlay" id="resolutionOverlay">
+      <p class="line1">punarapi jananam, punarapi maranam.</p>
+      <p class="line2">Again birth. Again death.</p>
+      <p class="line3">Until something doesn't go back on the wall.</p>
+    </div>
   </div>
 </div>
 
@@ -118,9 +166,18 @@ function init() {
   const video = document.getElementById('lifeVideo');
   const generationLabel = document.getElementById('generationLabel');
 
+  const breakTrack = document.getElementById('breakTrack');
+  const breakVideo = document.getElementById('breakVideo');
+  const resolutionOverlay = document.getElementById('resolutionOverlay');
+
   let duration = 0;
   video.addEventListener('loadedmetadata', () => {
     duration = video.duration;
+  });
+
+  let breakDuration = 0;
+  breakVideo.addEventListener('loadedmetadata', () => {
+    breakDuration = breakVideo.duration;
   });
 
   function scrubLife() {
@@ -133,30 +190,73 @@ function init() {
     video.currentTime = progress * duration;
   }
 
+  function scrubBreak() {
+    if (!breakDuration) return;
+
+    const rect = breakTrack.getBoundingClientRect();
+    const total = rect.height - window.innerHeight;
+    const progress = Math.min(Math.max(-rect.top, 0), total) / total;
+
+    breakVideo.currentTime = progress * breakDuration;
+
+    resolutionOverlay.classList.toggle('visible', progress >= 0.85);
+  }
+
   function updateGenerationLabel() {
     generationLabel.textContent = 'GENERATION 0' + loopCount;
   }
 
   let lastScroll = lenis.scroll;
 
+  function triggerBreak(limitAtTrigger) {
+    breakTriggered = true;
+    breakRewindFloor = limitAtTrigger;
+
+    breakTrack.style.display = 'block';
+
+    ScrollTrigger.create({
+      trigger: breakTrack,
+      start: 'top top',
+      end: 'bottom bottom',
+      onUpdate: scrubBreak,
+      onRefresh: scrubBreak
+    });
+
+    ScrollTrigger.refresh();
+
+    lenis.scrollTo(breakRewindFloor, { immediate: true });
+    lastScroll = breakRewindFloor;
+  }
+
   function handleSeam(e) {
     const scroll = e.scroll;
     const limit = e.limit;
+
+    // Hard floor: once BREAK has fired, never allow scrolling back
+    // past the start of the break footage.
+    if (breakTriggered && scroll < breakRewindFloor) {
+      lenis.scrollTo(breakRewindFloor, { immediate: true });
+      lastScroll = breakRewindFloor;
+      return;
+    }
 
     // SEAM — scrolling down past the end
     if (e.direction === 1 && lastScroll < limit && scroll >= limit && !breakTriggered) {
       loopCount += 1;
       updateGenerationLabel();
-      // BREAK (loopCount === 2) is not implemented yet — always loop for now.
-      lenis.scrollTo(1, { immediate: true });
-      lastScroll = 1;
+      if (loopCount === 2) {
+        triggerBreak(limit);
+      } else {
+        lenis.scrollTo(1, { immediate: true });
+        lastScroll = 1;
+      }
       return;
     }
 
     // SEAM — scrolling up past the start
     if (e.direction === -1 && lastScroll > breakRewindFloor && scroll <= breakRewindFloor) {
       if (breakTriggered) {
-        // hard floor, do nothing further
+        // hard floor, do nothing further (enforced above)
       } else if (loopCount > 1) {
         loopCount -= 1;
         updateGenerationLabel();
