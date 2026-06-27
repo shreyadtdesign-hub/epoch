@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EPOCH</title>
+
+<link rel="stylesheet" href="https://unpkg.com/lenis@1.3.23/dist/lenis.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/lenis@1.3.23/dist/lenis.min.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --black: #0A0A0A;
+    --cream: #F0EAE0;
+    --gold: #C9A877;
+    --gray: #6E6657;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: var(--black);
+    color: var(--cream);
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Main scrub track: tall scroll runway, video pinned inside it */
+  .scrub-track {
+    position: relative;
+    height: 700vh;
+  }
+
+  .scrub-pin {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .scrub-pin video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+</style>
+</head>
+<body>
+
+<div class="scrub-track" id="lifeTrack">
+  <div class="scrub-pin">
+    <video id="lifeVideo" src="epoch-life.mp4" muted playsinline preload="auto"></video>
+  </div>
+</div>
+
+<script>
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (reduced) {
+  initStaticFallback();
+} else {
+  init();
+}
+
+function initStaticFallback() {
+  // Reduced-motion fallback: full normal scroll, no GSAP, no scrub.
+  // Stage sections / resolution section to be added in a later step.
+  document.body.style.overflow = 'auto';
+}
+
+function init() {
+  gsap.registerPlugin(ScrollTrigger);
+
+  const lenis = new Lenis();
+  lenis.on('scroll', ScrollTrigger.update);
+  gsap.ticker.add((time) => lenis.raf(time * 1000));
+  gsap.ticker.lagSmoothing(0);
+
+  const track = document.getElementById('lifeTrack');
+  const video = document.getElementById('lifeVideo');
+
+  let duration = 0;
+  video.addEventListener('loadedmetadata', () => {
+    duration = video.duration;
+  });
+
+  function scrubLife() {
+    if (!duration) return;
+
+    const rect = track.getBoundingClientRect();
+    const total = rect.height - window.innerHeight;
+    const progress = Math.min(Math.max(-rect.top, 0), total) / total;
+
+    video.currentTime = progress * duration;
+  }
+
+  ScrollTrigger.create({
+    trigger: track,
+    start: 'top top',
+    end: 'bottom bottom',
+    onUpdate: scrubLife,
+    onRefresh: scrubLife
+  });
+
+  ScrollTrigger.refresh();
+}
+</script>
+
+</body>
+</html>
