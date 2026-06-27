@@ -50,6 +50,25 @@
     height: 100%;
     object-fit: cover;
   }
+
+  .generation-counter {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .generation-counter .label {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--gold);
+  }
 </style>
 </head>
 <body>
@@ -60,7 +79,21 @@
   </div>
 </div>
 
+<div class="generation-counter" id="generationCounter">
+  <svg width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="12" stroke="#C9A877" stroke-width="1.5" fill="none"/>
+    <line id="hourHand" x1="14" y1="14" x2="14" y2="8" stroke="#C9A877" stroke-width="1.5" stroke-linecap="round"/>
+    <line id="secondHand" x1="14" y1="14" x2="14" y2="5" stroke="#C9A877" stroke-width="1" stroke-linecap="round"/>
+  </svg>
+  <div class="label" id="generationLabel">GENERATION 01</div>
+</div>
+
 <script>
+// LOOP LOGIC state (module scope, top of script)
+let loopCount = 1;
+let breakTriggered = false;
+let breakRewindFloor = 0;
+
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 if (reduced) {
   initStaticFallback();
@@ -78,12 +111,12 @@ function init() {
   gsap.registerPlugin(ScrollTrigger);
 
   const lenis = new Lenis();
-  lenis.on('scroll', ScrollTrigger.update);
   gsap.ticker.add((time) => lenis.raf(time * 1000));
   gsap.ticker.lagSmoothing(0);
 
   const track = document.getElementById('lifeTrack');
   const video = document.getElementById('lifeVideo');
+  const generationLabel = document.getElementById('generationLabel');
 
   let duration = 0;
   video.addEventListener('loadedmetadata', () => {
@@ -100,6 +133,48 @@ function init() {
     video.currentTime = progress * duration;
   }
 
+  function updateGenerationLabel() {
+    generationLabel.textContent = 'GENERATION 0' + loopCount;
+  }
+
+  let lastScroll = lenis.scroll;
+
+  function handleSeam(e) {
+    const scroll = e.scroll;
+    const limit = e.limit;
+
+    // SEAM — scrolling down past the end
+    if (e.direction === 1 && lastScroll < limit && scroll >= limit && !breakTriggered) {
+      loopCount += 1;
+      updateGenerationLabel();
+      // BREAK (loopCount === 2) is not implemented yet — always loop for now.
+      lenis.scrollTo(1, { immediate: true });
+      lastScroll = 1;
+      return;
+    }
+
+    // SEAM — scrolling up past the start
+    if (e.direction === -1 && lastScroll > breakRewindFloor && scroll <= breakRewindFloor) {
+      if (breakTriggered) {
+        // hard floor, do nothing further
+      } else if (loopCount > 1) {
+        loopCount -= 1;
+        updateGenerationLabel();
+        lenis.scrollTo(limit - 1, { immediate: true });
+        lastScroll = limit - 1;
+        return;
+      }
+      // loopCount === 1: do nothing, floor
+    }
+
+    lastScroll = scroll;
+  }
+
+  lenis.on('scroll', (e) => {
+    ScrollTrigger.update();
+    handleSeam(e);
+  });
+
   ScrollTrigger.create({
     trigger: track,
     start: 'top top',
@@ -108,7 +183,20 @@ function init() {
     onRefresh: scrubLife
   });
 
+  initGenerationClock();
   ScrollTrigger.refresh();
+}
+
+function initGenerationClock() {
+  const secondHand = document.getElementById('secondHand');
+
+  function tick() {
+    const seconds = new Date().getSeconds();
+    secondHand.setAttribute('transform', `rotate(${seconds * 6} 14 14)`);
+  }
+
+  tick();
+  setInterval(tick, 1000);
 }
 </script>
 
