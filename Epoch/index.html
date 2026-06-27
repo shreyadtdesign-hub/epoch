@@ -43,9 +43,8 @@
   }
 
   .scrub-pin video {
-    position: absolute;
-    top: 0;
-    left: 0;
+    position: fixed;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -299,6 +298,10 @@ function init() {
   function triggerBreak(limitAtTrigger) {
     breakTriggered = true;
     breakRewindFloor = limitAtTrigger;
+
+    // video is position: fixed now, so it no longer scrolls away with its
+    // track — hide it explicitly so it doesn't sit on top of breakVideo.
+    video.style.visibility = 'hidden';
 
     breakTrack.style.display = 'block';
 
